@@ -11,7 +11,10 @@ import {
 } from '../data/flnFramework';
 import { Student } from '../types';
 import { toBanglaDigit } from '../utils/bangla';
-import { evaluateFlnEntryOverall } from '../utils/flnStudentSync';
+import {
+  computeSuggestedMathScore,
+  evaluateFlnEntryOverall,
+} from '../utils/flnStudentSync';
 
 interface StudentFlnModalProps {
   student: Student | null;
@@ -51,7 +54,8 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
   const existingEntry = flnRecord?.months[String(monthIndex)];
 
   const [readingWpm, setReadingWpm] = useState<number>(monthTarget.readingWpmGoal);
-  const [mathScore, setMathScore] = useState<number>(75);
+  const [mathScore, setMathScore] = useState<number>(68);
+  const [mathScoreManual, setMathScoreManual] = useState<boolean>(false);
   const [indicatorMap, setIndicatorMap] = useState<Record<string, FlnLevel>>({});
   const [remark, setRemark] = useState<string>('');
 
@@ -59,27 +63,40 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
     if (!student) return;
     if (existingEntry) {
       setReadingWpm(existingEntry.readingWpm ?? monthTarget.readingWpmGoal);
-      setMathScore(existingEntry.mathScore ?? 75);
+      setMathScore(
+        existingEntry.mathScore ??
+          computeSuggestedMathScore(existingEntry.indicators || {}, classLevel)
+      );
+      setMathScoreManual(Boolean(existingEntry.mathScoreManual));
       setIndicatorMap({ ...existingEntry.indicators });
       setRemark(existingEntry.remark || '');
     } else {
       setReadingWpm(monthTarget.readingWpmGoal);
-      setMathScore(75);
       const defaults: Record<string, FlnLevel> = {};
       indicators.forEach((ind) => {
         defaults[ind.id] = 'developing';
       });
       setIndicatorMap(defaults);
+      setMathScore(computeSuggestedMathScore(defaults, classLevel));
+      setMathScoreManual(false);
       setRemark('');
     }
-  }, [student, monthIndex, existingEntry, indicators, monthTarget.readingWpmGoal]);
+  }, [student, monthIndex, existingEntry, indicators, classLevel, monthTarget.readingWpmGoal]);
 
   if (!student) return null;
 
   const previewSummary = evaluateFlnEntryOverall(
-    { readingWpm, mathScore, indicators: indicatorMap, remark },
+    { readingWpm, mathScore, mathScoreManual, indicators: indicatorMap, remark },
     classLevel
   );
+
+  const handleIndicatorChange = (indicatorId: string, domain: string, lvl: FlnLevel) => {
+    const nextMap = { ...indicatorMap, [indicatorId]: lvl };
+    setIndicatorMap(nextMap);
+    if (domain === 'গণিত' && !mathScoreManual) {
+      setMathScore(computeSuggestedMathScore(nextMap, classLevel));
+    }
+  };
 
   const handleMarkAllMastered = () => {
     const nextMap: Record<string, FlnLevel> = {};
@@ -88,7 +105,11 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
     });
     setIndicatorMap(nextMap);
     setReadingWpm((prev) => Math.max(prev || 0, monthTarget.readingWpmGoal));
-    setMathScore((prev) => Math.max(prev || 0, 85));
+    setMathScore((prev) =>
+      mathScoreManual
+        ? Math.max(prev || 0, 90)
+        : computeSuggestedMathScore(nextMap, classLevel)
+    );
     if (!remark.trim()) {
       setRemark('প্রান্তিক যোগ্যতা অর্জিত');
     }
@@ -99,6 +120,7 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
     onSaveMonthEntry(student, monthIndex, {
       readingWpm: Math.max(0, Number(readingWpm) || 0),
       mathScore: Math.max(0, Math.min(100, Number(mathScore) || 0)),
+      mathScoreManual,
       indicators: indicatorMap,
       remark: remark.trim(),
     });
@@ -220,15 +242,36 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                গণিত সংখ্যাবোধ ও দক্ষতা (%)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  গণিত সংখ্যাবোধ ও দক্ষতা (%)
+                </label>
+                {mathScoreManual ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMathScoreManual(false);
+                      setMathScore(computeSuggestedMathScore(indicatorMap, classLevel));
+                    }}
+                    className="text-[11px] font-semibold text-emerald-700 hover:underline"
+                  >
+                    অটো % বসান
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-semibold text-emerald-700">
+                    সূচক থেকে অটো %
+                  </span>
+                )}
+              </div>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={mathScore}
-                onChange={(e) => setMathScore(Number(e.target.value) || 0)}
+                onChange={(e) => {
+                  setMathScoreManual(true);
+                  setMathScore(Math.min(100, Math.max(0, Number(e.target.value) || 0)));
+                }}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold tabular-nums focus:border-emerald-700 focus:outline-none"
               />
             </div>
@@ -239,7 +282,8 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-slate-800">
                 সাক্ষরতা ও সংখ্যাজ্ঞান সূচক ({toBanglaDigit(previewSummary.masteredCount)}/
-                {toBanglaDigit(previewSummary.totalIndicators)} অর্জিত)
+                {toBanglaDigit(previewSummary.totalIndicators)} অর্জিত · অটো:{' '}
+                {toBanglaDigit(previewSummary.percent)}%)
               </span>
               <button
                 type="button"
@@ -273,9 +317,7 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
                           <button
                             key={lvl}
                             type="button"
-                            onClick={() =>
-                              setIndicatorMap((prev) => ({ ...prev, [ind.id]: lvl }))
-                            }
+                            onClick={() => handleIndicatorChange(ind.id, ind.domain, lvl)}
                             className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap ${
                               active
                                 ? meta.badgeClass
@@ -309,12 +351,20 @@ export const StudentFlnModal: React.FC<StudentFlnModalProps> = ({
 
           {/* Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-            <div className="text-xs font-semibold text-slate-600">
-              সর্বমোট অবস্থা:{' '}
-              <span className={FLN_LEVEL_META[previewSummary.overall].textClass}>
-                {FLN_LEVEL_META[previewSummary.overall].symbol}{' '}
-                {FLN_LEVEL_META[previewSummary.overall].label}
-              </span>
+            <div className="text-xs font-semibold text-slate-600 space-y-0.5">
+              <div>
+                সর্বমোট অবস্থা:{' '}
+                <span className={FLN_LEVEL_META[previewSummary.overall].textClass}>
+                  {FLN_LEVEL_META[previewSummary.overall].symbol}{' '}
+                  {FLN_LEVEL_META[previewSummary.overall].label} (
+                  {toBanglaDigit(previewSummary.percent)}%)
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 tabular-nums">
+                বাংলা: {toBanglaDigit(previewSummary.domainPercents['বাংলা'])}% · English:{' '}
+                {toBanglaDigit(previewSummary.domainPercents.English)}% · গণিত:{' '}
+                {toBanglaDigit(previewSummary.domainPercents['গণিত'])}%
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button

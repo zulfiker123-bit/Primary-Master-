@@ -31,19 +31,19 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="no-print sticky top-0 z-40 h-14 md:h-16 bg-[#0F2922] text-white border-b border-emerald-950/60">
-        <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 md:gap-8 px-4 sm:px-6">
+        <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-2 sm:gap-4 md:gap-8 px-3 sm:px-6">
           {/* Zone 1: Single-line Brand Wordmark */}
           <button
             type="button"
             onClick={() => onNavigate('home')}
-            className="flex items-center gap-2.5 text-left font-bold tracking-tight text-white whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 rounded-lg py-1"
+            className="flex min-w-0 items-center gap-2 sm:gap-2.5 text-left font-bold tracking-tight text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 rounded-lg py-1"
           >
             <img
               src={DPE_LOGO_SRC}
               alt="প্রাইমারি মাস্টার"
-              className="h-9 w-9 md:h-10 md:w-10 rounded-xl object-contain ring-1 ring-amber-300/60 shrink-0 bg-white p-0.5"
+              className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-xl object-contain ring-1 ring-amber-300/60 shrink-0 bg-white p-0.5"
             />
-            <span className="text-base md:text-lg font-display">প্রাইমারি মাস্টার</span>
+            <span className="truncate text-sm sm:text-base md:text-lg font-display">প্রাইমারি মাস্টার</span>
           </button>
 
           {/* Zone 2: 5 concise single-line nav links (desktop) */}
@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Zone 3: Action triggers */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <PWAInstallButton />
             <button
               type="button"
@@ -81,11 +81,11 @@ export const Header: React.FC<HeaderProps> = ({
               onMouseEnter={() => onPrefetch('notices')}
               aria-label="লাইভ নোটিশ"
               title="লাইভ নোটিশ"
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-emerald-100 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+              className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-emerald-100 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
             >
               <Bell className="h-5 w-5" />
               {unreadNotices > 0 && (
-                <span className="absolute top-1.5 right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 tabular-nums ring-2 ring-[#0F2922]">
+                <span className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 tabular-nums ring-2 ring-[#0F2922]">
                   {toBanglaDigit(unreadNotices)}
                 </span>
               )}

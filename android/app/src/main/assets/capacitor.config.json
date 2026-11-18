@@ -1,9 +1,9 @@
 {
 	"appId": "com.shimuldigital.teacherassistant",
-	"appName": "Primary Teacher Assistant",
+	"appName": "প্রাইমারি মাস্টার",
 	"webDir": "dist",
 	"android": {
-		"backgroundColor": "#F4F7FB",
+		"backgroundColor": "#F6F7F4",
 		"allowMixedContent": false
 	},
 	"server": {

@@ -800,10 +800,12 @@ export default function StudentsPage({ profile, onNavigate }: StudentsPageProps)
                             <div className="space-y-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${flnMeta.badgeClass}`}
+                                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap tabular-nums ${flnMeta.badgeClass}`}
                                 >
                                   <span>{flnMeta.symbol}</span>
-                                  <span>{flnMeta.shortLabel}</span>
+                                  <span>
+                                    {flnMeta.shortLabel} ({toBanglaDigit(flnSummary.percent)}%)
+                                  </span>
                                 </span>
                                 {flnSummary.isFallbackMonth && (
                                   <span className="text-[10px] text-slate-500">

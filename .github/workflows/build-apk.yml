@@ -1,9 +1,12 @@
-name: Build Android APK
+name: Build & Publish Android APK
 
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
+
+permissions:
+  contents: write
 
 jobs:
   build-android-apk:
@@ -25,7 +28,7 @@ jobs:
 
       - name: Install dependencies & build web bundle
         run: |
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
           npx cap sync android
 
@@ -36,8 +39,21 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug
 
+      - name: Prepare named APK copy
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk primary-master.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: primary-teacher-assistant-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: primary-master-apk
+          path: primary-master.apk
+
+      - name: Publish APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v2.6.0-build-${{ github.run_number }}"
+          gh release create "$TAG" primary-master.apk \
+            --title "প্রাইমারি মাস্টার Android APK ($TAG)" \
+            --notes "অফিশিয়াল অ্যান্ড্রয়েড APK বিল্ড। সরাসরি ডাউনলোড লিংক (সর্বশেষ): https://github.com/${{ github.repository }}/releases/latest/download/primary-master.apk" \
+            --latest

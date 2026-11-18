@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -34,6 +34,13 @@ import { getMonthlyFlnQuestionSet } from '../data/flnMonthlyAssessments';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { RouteKey, Student, TeacherProfile } from '../types';
 import { getFormattedBanglaDate, toBanglaDigit } from '../utils/bangla';
+import {
+  computeFlnClassSummary,
+  computeFlnSchoolSummary,
+  computeSuggestedMathScore,
+  evaluateFlnEntryOverall,
+  mergeRegisteredStudentsIntoFlnRecords,
+} from '../utils/flnStudentSync';
 import { exportElementToA4Pdf } from '../utils/pdfExport';
 import { triggerSmartPrint } from '../utils/printHelper';
 
@@ -46,33 +53,17 @@ type FlnTab = 'assess' | 'questions' | 'matrix' | 'preview';
 
 const LEVEL_ORDER: FlnLevel[] = ['mastered', 'developing', 'remedial'];
 
-function getDomainScoreSummary(
-  entry: FlnMonthlyCheckEntry | undefined,
-  indicatorIds: string[]
-): { overall: FlnLevel; masteredCount: number; total: number; percent: number } {
-  if (!entry || indicatorIds.length === 0) {
-    return { overall: 'remedial', masteredCount: 0, total: indicatorIds.length, percent: 0 };
-  }
-  let mastered = 0;
-  let remedial = 0;
-  indicatorIds.forEach((id) => {
-    const val = entry.indicators[id];
-    if (val === 'mastered') mastered += 1;
-    else if (val === 'remedial' || !val) remedial += 1;
-  });
-  const total = indicatorIds.length;
-  const percent = Math.round((mastered / total) * 100);
-  const overall: FlnLevel =
-    mastered === total ? 'mastered' : remedial > Math.floor(total / 2) ? 'remedial' : 'developing';
-  return { overall, masteredCount: mastered, total, percent };
-}
-
 export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPageProps) {
   const [records, setRecords] = useLocalStorage<FlnStudentRecord[]>(
     'monthly_fln_records_v1',
     buildInitialFlnRecords()
   );
+  const [dismissedIds, setDismissedIds] = useLocalStorage<string[]>(
+    'monthly_fln_dismissed_ids_v1',
+    []
+  );
   const [registeredStudents] = useLocalStorage<Student[]>('students_list_v1', []);
+  const [previewIncludeSchoolSummary, setPreviewIncludeSchoolSummary] = useState(true);
 
   // Default to Class 3 (one of the primary requested FLN classes: 3rd, 4th, 5th)
   const [selectedClass, setSelectedClass] = useState<string>('তৃতীয় শ্রেণি');
@@ -126,40 +117,29 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
     [selectedClass, selectedMonth]
   );
 
-  const monthStats = useMemo(() => {
-    let masteredStudents = 0;
-    let developingStudents = 0;
-    let remedialStudents = 0;
-    let wpmSum = 0;
-    let wpmCount = 0;
-    const allIds = classIndicators.map((i) => i.id);
-
-    classRecords.forEach((student) => {
-      const entry = student.months[String(selectedMonth)];
-      const summary = getDomainScoreSummary(entry, allIds);
-      if (summary.overall === 'mastered') masteredStudents += 1;
-      else if (summary.overall === 'developing') developingStudents += 1;
-      else remedialStudents += 1;
-
-      if (entry && typeof entry.readingWpm === 'number' && entry.readingWpm > 0) {
-        wpmSum += entry.readingWpm;
-        wpmCount += 1;
-      }
+  // Automatically keep all registered students (`students_list_v1`) synced into FLN records
+  useEffect(() => {
+    if (registeredStudents.length === 0) return;
+    setRecords((prev) => {
+      const res = mergeRegisteredStudentsIntoFlnRecords(prev, registeredStudents, dismissedIds);
+      return res.changed ? res.nextRecords : prev;
     });
+  }, [registeredStudents, dismissedIds, setRecords]);
 
-    const avgWpm = wpmCount > 0 ? Math.round(wpmSum / wpmCount) : 0;
-    const masteryPct =
-      classRecords.length > 0 ? Math.round((masteredStudents / classRecords.length) * 100) : 0;
+  const monthStats = useMemo(
+    () => computeFlnClassSummary(records, selectedClass, selectedMonth),
+    [records, selectedClass, selectedMonth]
+  );
 
-    return {
-      total: classRecords.length,
-      masteredStudents,
-      developingStudents,
-      remedialStudents,
-      avgWpm,
-      masteryPct,
-    };
-  }, [classRecords, classIndicators, selectedMonth]);
+  const schoolSummary = useMemo(
+    () => computeFlnSchoolSummary(records, selectedMonth),
+    [records, selectedMonth]
+  );
+
+  const matrixMonthSummaries = useMemo(
+    () => FLN_MONTHS.map((m) => computeFlnClassSummary(records, selectedClass, m.index)),
+    [records, selectedClass]
+  );
 
   const updateStudentMonth = (
     studentId: string,
@@ -171,7 +151,8 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
         if (rec.id !== studentId) return rec;
         const currentEntry: FlnMonthlyCheckEntry = rec.months[key] || {
           readingWpm: monthTarget.readingWpmGoal,
-          mathScore: 70,
+          mathScore: computeSuggestedMathScore({}, selectedClass),
+          mathScoreManual: false,
           indicators: {},
           remark: '',
         };
@@ -187,27 +168,43 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
   };
 
   const cycleIndicatorLevel = (studentId: string, indicatorId: string) => {
+    const targetInd = classIndicators.find((i) => i.id === indicatorId);
     updateStudentMonth(studentId, (entry) => {
       const curr = entry.indicators[indicatorId] || 'remedial';
       const next = LEVEL_ORDER[(LEVEL_ORDER.indexOf(curr) + 1) % LEVEL_ORDER.length];
+      const nextIndicators = {
+        ...entry.indicators,
+        [indicatorId]: next,
+      };
+      const nextMathScore =
+        targetInd?.domain === 'গণিত' && !entry.mathScoreManual
+          ? computeSuggestedMathScore(nextIndicators, selectedClass)
+          : entry.mathScore;
       return {
         ...entry,
-        indicators: {
-          ...entry.indicators,
-          [indicatorId]: next,
-        },
+        mathScore: nextMathScore,
+        indicators: nextIndicators,
       };
     });
   };
 
   const setIndicatorLevel = (studentId: string, indicatorId: string, level: FlnLevel) => {
-    updateStudentMonth(studentId, (entry) => ({
-      ...entry,
-      indicators: {
+    const targetInd = classIndicators.find((i) => i.id === indicatorId);
+    updateStudentMonth(studentId, (entry) => {
+      const nextIndicators = {
         ...entry.indicators,
         [indicatorId]: level,
-      },
-    }));
+      };
+      const nextMathScore =
+        targetInd?.domain === 'গণিত' && !entry.mathScoreManual
+          ? computeSuggestedMathScore(nextIndicators, selectedClass)
+          : entry.mathScore;
+      return {
+        ...entry,
+        mathScore: nextMathScore,
+        indicators: nextIndicators,
+      };
+    });
   };
 
   const handleMarkAllMasteredForStudent = (studentId: string) => {
@@ -219,7 +216,9 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
       return {
         ...entry,
         readingWpm: Math.max(entry.readingWpm || 0, monthTarget.readingWpmGoal),
-        mathScore: Math.max(entry.mathScore || 0, 85),
+        mathScore: entry.mathScoreManual
+          ? Math.max(entry.mathScore || 0, 90)
+          : computeSuggestedMathScore(nextInds, selectedClass),
         indicators: nextInds,
         remark: 'সকল প্রান্তিক যোগ্যতা অর্জিত',
       };
@@ -247,37 +246,39 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
   const handleImportFromStudents = () => {
     const classList = registeredStudents.filter((s) => s.classLevel === selectedClass);
     if (classList.length === 0) return;
-    const existingKeys = new Set(
-      classRecords.map((r) => `${r.roll}-${r.studentName}`.toLowerCase())
-    );
-    const additions: FlnStudentRecord[] = [];
-    classList.forEach((s) => {
-      const k = `${s.roll}-${s.name}`.toLowerCase();
-      if (!existingKeys.has(k)) {
-        additions.push({
-          id: `fln-imp-${s.id}`,
-          classLevel: selectedClass,
-          roll: s.roll,
-          studentName: s.name,
-          months: {},
-        });
-      }
-    });
-    if (additions.length === 0) {
+
+    const classImpIds = new Set(classList.map((s) => `fln-imp-${s.id}`));
+    const nextDismissed = dismissedIds.filter((id) => !classImpIds.has(id));
+    if (nextDismissed.length !== dismissedIds.length) {
+      setDismissedIds(nextDismissed);
+    }
+
+    const merged = mergeRegisteredStudentsIntoFlnRecords(records, classList, nextDismissed);
+    if (!merged.changed) {
       showToast(`${selectedClass}-এর নিবন্ধিত শিক্ষার্থীরা ইতিমধ্যেই FLN তালিকায় যুক্ত আছে।`);
       return;
     }
-    setRecords((prev) => [...prev, ...additions]);
-    showToast(`${toBanglaDigit(additions.length)} জন শিক্ষার্থী তালিকা থেকে আমদানি হয়েছে।`);
+    setRecords(merged.nextRecords);
+    showToast(
+      merged.addedCount > 0
+        ? `${toBanglaDigit(merged.addedCount)} জন শিক্ষার্থী তালিকা থেকে সিঙ্ক হয়েছে।`
+        : `${selectedClass}-এর শিক্ষার্থীর তথ্য হালনাগাদ হয়েছে।`
+    );
   };
 
   const handleRemoveStudent = (id: string) => {
+    if (id.startsWith('fln-imp-')) {
+      setDismissedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }
     setRecords((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleResetDemo = () => {
-    setRecords(buildInitialFlnRecords());
-    showToast('ডিফল্ট নমুনা FLN রেকর্ড পুনরায় লোড হয়েছে।');
+    setDismissedIds([]);
+    const base = buildInitialFlnRecords();
+    const synced = mergeRegisteredStudentsIntoFlnRecords(base, registeredStudents, []);
+    setRecords(synced.nextRecords);
+    showToast('ডিফল্ট নমুনা ও নিবন্ধিত শিক্ষার্থী রেকর্ড পুনরায় লোড হয়েছে।');
   };
 
   const handleExportPdf = async () => {
@@ -498,14 +499,15 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
           </div>
         </div>
 
-        {/* Summary KPI Metrics Card */}
+        {/* Summary KPI Metrics Card (Auto % from all students) */}
         <div className="lg:col-span-5 rounded-2xl bg-white border border-stone-200 p-4 sm:p-5 flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2.5">
             <h2 className="text-sm font-bold text-slate-900">
-              {currentMilestone.monthName} মাসের অর্জন সারসংক্ষেপ
+              {currentMilestone.monthName} মাসের অর্জন সারসংক্ষেপ (অটো %)
             </h2>
-            <span className="text-xs text-slate-500 tabular-nums">
-              মোট শিক্ষার্থী: {toBanglaDigit(monthStats.total)} জন
+            <span className="text-xs text-slate-600 font-medium tabular-nums">
+              মূল্যায়িত: {toBanglaDigit(monthStats.assessedCount)}/
+              {toBanglaDigit(monthStats.totalStudents)} জন ({toBanglaDigit(monthStats.assessedPct)}%)
             </span>
           </div>
 
@@ -513,27 +515,34 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
               <p className="text-emerald-900 font-medium">● অর্জিত (দক্ষ)</p>
               <p className="text-xl font-bold text-emerald-950 tabular-nums mt-0.5">
-                {toBanglaDigit(monthStats.masteredStudents)} জন ({toBanglaDigit(monthStats.masteryPct)}%)
+                {toBanglaDigit(monthStats.masteredCount)} জন ({toBanglaDigit(monthStats.masteredPct)}%)
               </p>
             </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
               <p className="text-amber-900 font-medium">◐ অগ্রসরমান (মধ্যম)</p>
               <p className="text-xl font-bold text-amber-950 tabular-nums mt-0.5">
-                {toBanglaDigit(monthStats.developingStudents)} জন
+                {toBanglaDigit(monthStats.developingCount)} জন ({toBanglaDigit(monthStats.developingPct)}%)
               </p>
             </div>
             <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3">
               <p className="text-rose-900 font-medium">▲ নিরাময় প্রয়োজন</p>
               <p className="text-xl font-bold text-rose-950 tabular-nums mt-0.5">
-                {toBanglaDigit(monthStats.remedialStudents)} জন
+                {toBanglaDigit(monthStats.remedialCount)} জন ({toBanglaDigit(monthStats.remedialPct)}%)
               </p>
             </div>
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-              <p className="text-slate-600 font-medium">গড় পঠন গতি (WPM)</p>
+              <p className="text-slate-600 font-medium">সার্বিক FLN ও গতি</p>
               <p className="text-xl font-bold text-slate-900 tabular-nums mt-0.5">
-                {toBanglaDigit(monthStats.avgWpm)} শব্দ/মি.
+                {toBanglaDigit(monthStats.overallFlnPct)}% · {toBanglaDigit(monthStats.avgWpm)} WPM
               </p>
             </div>
+          </div>
+
+          <div className="rounded-xl bg-emerald-50/60 border border-emerald-200/70 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-emerald-950 tabular-nums">
+            <span>বাংলা: {toBanglaDigit(monthStats.banglaAvgPct)}%</span>
+            <span>English: {toBanglaDigit(monthStats.englishAvgPct)}%</span>
+            <span>গণিত: {toBanglaDigit(monthStats.avgMathScore)}%</span>
+            <span>লক্ষ্য WPM অর্জন: {toBanglaDigit(monthStats.targetWpmMetPct)}%</span>
           </div>
         </div>
       </div>
@@ -670,10 +679,7 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                   <tbody className="divide-y divide-stone-100">
                     {classRecords.map((rec) => {
                       const entry = rec.months[String(selectedMonth)];
-                      const summary = getDomainScoreSummary(
-                        entry,
-                        classIndicators.map((i) => i.id)
-                      );
+                      const summary = evaluateFlnEntryOverall(entry, selectedClass);
                       const overallMeta = FLN_LEVEL_META[summary.overall];
 
                       return (
@@ -683,9 +689,15 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                           </td>
                           <td className="py-2.5 px-3">
                             <p className="font-semibold text-slate-900">{rec.studentName}</p>
-                            <p className="text-[10px] text-slate-500 tabular-nums">
-                              অর্জন: {toBanglaDigit(summary.masteredCount)}/{toBanglaDigit(summary.total)} ({toBanglaDigit(summary.percent)}%)
-                            </p>
+                            {summary.hasEntry ? (
+                              <p className="text-[10px] text-slate-500 tabular-nums">
+                                অর্জন: {toBanglaDigit(summary.masteredCount)}/{toBanglaDigit(summary.totalIndicators)} ({toBanglaDigit(summary.percent)}%) · বাংলা {toBanglaDigit(summary.domainPercents['বাংলা'])}% · Eng {toBanglaDigit(summary.domainPercents.English)}%
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-amber-700 font-medium">
+                                মূল্যায়ন বাকি — মান নির্বাচন করুন
+                              </p>
+                            )}
                           </td>
                           <td className="py-2.5 px-2 text-center">
                             <input
@@ -702,18 +714,44 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                             />
                           </td>
                           <td className="py-2.5 px-2 text-center">
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={entry?.mathScore ?? ''}
-                              placeholder="80"
-                              onChange={(e) => {
-                                const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                                updateStudentMonth(rec.id, (prev) => ({ ...prev, mathScore: val }));
-                              }}
-                              className="w-16 h-8 rounded-lg border border-stone-200 px-2 text-center text-xs font-semibold tabular-nums"
-                            />
+                            <div className="inline-flex flex-col items-center gap-0.5">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={entry?.mathScore ?? ''}
+                                placeholder={String(
+                                  computeSuggestedMathScore(entry?.indicators || {}, selectedClass)
+                                )}
+                                onChange={(e) => {
+                                  const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                                  updateStudentMonth(rec.id, (prev) => ({
+                                    ...prev,
+                                    mathScore: val,
+                                    mathScoreManual: true,
+                                  }));
+                                }}
+                                className="w-16 h-8 rounded-lg border border-stone-200 px-2 text-center text-xs font-semibold tabular-nums"
+                              />
+                              {entry?.mathScoreManual && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateStudentMonth(rec.id, (prev) => ({
+                                      ...prev,
+                                      mathScoreManual: false,
+                                      mathScore: computeSuggestedMathScore(
+                                        prev.indicators || {},
+                                        selectedClass
+                                      ),
+                                    }))
+                                  }
+                                  className="text-[10px] font-semibold text-emerald-700 hover:underline"
+                                >
+                                  অটো %
+                                </button>
+                              )}
+                            </div>
                           </td>
                           {filteredIndicators.map((ind) => {
                             const lvl: FlnLevel = entry?.indicators[ind.id] || 'remedial';
@@ -725,9 +763,13 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                                     type="button"
                                     onClick={() => cycleIndicatorLevel(rec.id, ind.id)}
                                     title="মান পরিবর্তন করতে ক্লিক করুন"
-                                    className={`w-full rounded-lg border px-2 py-1 text-[11px] font-semibold text-left transition-colors ${meta.badgeClass}`}
+                                    className={`w-full rounded-lg border px-2 py-1 text-[11px] font-semibold text-left transition-colors ${
+                                      summary.hasEntry
+                                        ? meta.badgeClass
+                                        : 'border-stone-200 bg-stone-50 text-slate-500'
+                                    }`}
                                   >
-                                    {meta.symbol} {meta.shortLabel}
+                                    {summary.hasEntry ? `${meta.symbol} ${meta.shortLabel}` : '— বাকি'}
                                   </button>
                                   <div className="flex gap-1">
                                     {LEVEL_ORDER.map((opt) => (
@@ -736,7 +778,7 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                                         type="button"
                                         onClick={() => setIndicatorLevel(rec.id, ind.id, opt)}
                                         className={`flex-1 rounded px-1 py-0.5 text-[10px] font-medium border ${
-                                          lvl === opt
+                                          summary.hasEntry && lvl === opt
                                             ? 'border-slate-800 bg-slate-800 text-white'
                                             : 'border-stone-200 bg-white text-slate-500 hover:bg-stone-100'
                                         }`}
@@ -754,11 +796,17 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                             );
                           })}
                           <td className="py-2.5 px-2 text-center">
-                            <span
-                              className={`inline-block rounded-lg border px-2 py-1 text-[11px] font-bold whitespace-nowrap ${overallMeta.badgeClass}`}
-                            >
-                              {overallMeta.symbol} {overallMeta.shortLabel}
-                            </span>
+                            {summary.hasEntry ? (
+                              <span
+                                className={`inline-block rounded-lg border px-2 py-1 text-[11px] font-bold whitespace-nowrap tabular-nums ${overallMeta.badgeClass}`}
+                              >
+                                {overallMeta.symbol} {overallMeta.shortLabel} · {toBanglaDigit(summary.percent)}%
+                              </span>
+                            ) : (
+                              <span className="inline-block rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                                — বাকি
+                              </span>
+                            )}
                           </td>
                           <td className="py-2.5 px-2 text-right whitespace-nowrap">
                             <button
@@ -782,6 +830,41 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                       );
                     })}
                   </tbody>
+                  <tfoot className="bg-emerald-50/80 border-t-2 border-emerald-200 text-emerald-950 font-bold">
+                    <tr>
+                      <td className="py-3 px-3 text-center" colSpan={2}>
+                        শ্রেণির গড় ও অটো % ({toBanglaDigit(monthStats.assessedCount)}/
+                        {toBanglaDigit(monthStats.totalStudents)} জন মূল্যায়িত ·{' '}
+                        {toBanglaDigit(monthStats.assessedPct)}%)
+                      </td>
+                      <td className="py-3 px-2 text-center tabular-nums">
+                        {toBanglaDigit(monthStats.avgWpm)} WPM
+                      </td>
+                      <td className="py-3 px-2 text-center tabular-nums">
+                        {toBanglaDigit(monthStats.avgMathScore)}%
+                      </td>
+                      {filteredIndicators.map((ind) => {
+                        const st = monthStats.indicatorStats[ind.id];
+                        return (
+                          <td key={ind.id} className="py-3 px-2 text-center tabular-nums">
+                            <div>{toBanglaDigit(st?.attainmentPct ?? 0)}%</div>
+                            <div className="text-[10px] font-medium text-emerald-800">
+                              দক্ষ: {toBanglaDigit(st?.masteredCount ?? 0)}/{toBanglaDigit(st?.assessedCount ?? 0)} ({toBanglaDigit(st?.masteryPct ?? 0)}%)
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-2 text-center tabular-nums">
+                        <div>{toBanglaDigit(monthStats.overallFlnPct)}%</div>
+                        <div className="text-[10px] font-medium text-emerald-800">
+                          ● {toBanglaDigit(monthStats.masteredPct)}%
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-right text-[10px] font-semibold text-emerald-800">
+                        অটো হিসাব
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -1144,10 +1227,7 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                           </td>
                         );
                       }
-                      const summary = getDomainScoreSummary(
-                        entry,
-                        classIndicators.map((i) => i.id)
-                      );
+                      const summary = evaluateFlnEntryOverall(entry, selectedClass);
                       const meta = FLN_LEVEL_META[summary.overall];
                       return (
                         <td
@@ -1173,19 +1253,51 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="bg-emerald-50/80 text-emerald-950 font-bold">
+                  <td className="border border-stone-200 py-2.5 px-3 text-center" colSpan={2}>
+                    মাসভিত্তিক শ্রেণির গড় FLN (%)
+                  </td>
+                  {matrixMonthSummaries.map((mSum, idx) => (
+                    <td
+                      key={idx}
+                      className={`border border-stone-200 py-2 px-1 text-center tabular-nums ${
+                        idx === selectedMonth ? 'bg-emerald-100' : ''
+                      }`}
+                    >
+                      {mSum.assessedCount > 0 ? `${toBanglaDigit(mSum.overallFlnPct)}%` : '—'}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
       )}
 
-      {/* TAB 3: Official A4 Landscape Narrow Margin Print & PDF Report */}
+      {/* TAB 3: Official A4 Landscape Narrow Margin Print & PDF Report (Auto FLN Form) */}
       {activeTab === 'preview' && (
         <div className="space-y-4">
           <div className="no-print flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-xs text-emerald-950">
             <span className="font-semibold">
-              অফিসিয়াল A4 Landscape (মার্জিনবিহীন: ০ মিমি) মাসিক ও ১২-মাসের FLN প্রিন্ট প্রিভিউ
+              অফিসিয়াল A4 Landscape (মার্জিনবিহীন: ০ মিমি) অটো পূরণকৃত FLN ফরম ও প্রতিবেদন
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPreviewIncludeSchoolSummary((v) => !v)}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                  previewIncludeSchoolSummary
+                    ? 'border-emerald-700 bg-white text-emerald-900'
+                    : 'border-stone-300 bg-white/70 text-slate-700'
+                }`}
+              >
+                <span>
+                  {previewIncludeSchoolSummary
+                    ? '✓ সকল শ্রেণিসহ স্কুল ফরম যুক্ত আছে'
+                    : 'সকল শ্রেণির সারসংক্ষেপ যোগ করুন'}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={handleExportPdf}
@@ -1220,10 +1332,63 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
               <OfficialA4Letterhead
                 schoolName={profile.school || '৮২ নং কোলা সরকারি প্রাথমিক বিদ্যালয়'}
                 addressLine={`${profile.villagePost ? profile.villagePost + ', ' : ''}${profile.upazila || 'আশাশুনি'}, ${profile.district || 'সাতক্ষীরা'}`}
-                documentTitle={`মাসিক ও বার্ষিক FLN (প্রান্তিক যোগ্যতাভিত্তিক) যাচাই প্রতিবেদন — ${selectedClass}`}
-                subtitle={`প্রতিবেদনের মাস: ${currentMilestone.monthName} ২০২৬ · মূল বিষয়: বাংলা ও ইংরেজি সাক্ষরতা এবং গণিত সংখ্যাবোধ (১২ মাস ট্র্যাকার)`}
+                documentTitle={`মাসিক ও বার্ষিক FLN (প্রান্তিক যোগ্যতাভিত্তিক) তথ্য ফরম ও প্রতিবেদন — ${selectedClass}`}
+                subtitle={`প্রতিবেদনের মাস: ${currentMilestone.monthName} ২০২৬ · সকল শিক্ষার্থীর ডাটা থেকে স্বয়ংক্রিয়ভাবে % হিসাবকৃত`}
                 compact
               />
+
+              {/* Auto-Calculated FLN Summary Form Box */}
+              <div className="border border-slate-700 rounded-md p-2.5 bg-emerald-50/40 space-y-2">
+                <p className="text-[11px] font-bold text-slate-900">
+                  ক) {selectedClass}-এর মাসিক FLN সারসংক্ষেপ ফরম (সকল শিক্ষার্থীর ডাটা থেকে অটো %):
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 text-[10px] tabular-nums">
+                  <div className="border border-slate-400 bg-white px-2 py-1.5 rounded">
+                    <p className="text-slate-500">মোট শিক্ষার্থী</p>
+                    <p className="font-bold text-slate-900">{toBanglaDigit(monthStats.totalStudents)} জন</p>
+                  </div>
+                  <div className="border border-slate-400 bg-white px-2 py-1.5 rounded">
+                    <p className="text-slate-500">মূল্যায়িত (%)</p>
+                    <p className="font-bold text-slate-900">
+                      {toBanglaDigit(monthStats.assessedCount)} জন ({toBanglaDigit(monthStats.assessedPct)}%)
+                    </p>
+                  </div>
+                  <div className="border border-emerald-500 bg-emerald-50 px-2 py-1.5 rounded">
+                    <p className="text-emerald-900">● অর্জিত (দক্ষ)</p>
+                    <p className="font-bold text-emerald-950">
+                      {toBanglaDigit(monthStats.masteredCount)} জন ({toBanglaDigit(monthStats.masteredPct)}%)
+                    </p>
+                  </div>
+                  <div className="border border-amber-500 bg-amber-50 px-2 py-1.5 rounded">
+                    <p className="text-amber-900">◐ অগ্রসরমান</p>
+                    <p className="font-bold text-amber-950">
+                      {toBanglaDigit(monthStats.developingCount)} জন ({toBanglaDigit(monthStats.developingPct)}%)
+                    </p>
+                  </div>
+                  <div className="border border-rose-500 bg-rose-50 px-2 py-1.5 rounded">
+                    <p className="text-rose-900">▲ নিরাময়</p>
+                    <p className="font-bold text-rose-950">
+                      {toBanglaDigit(monthStats.remedialCount)} জন ({toBanglaDigit(monthStats.remedialPct)}%)
+                    </p>
+                  </div>
+                  <div className="border border-slate-400 bg-white px-2 py-1.5 rounded">
+                    <p className="text-slate-500">বাংলা / English</p>
+                    <p className="font-bold text-slate-900">
+                      {toBanglaDigit(monthStats.banglaAvgPct)}% / {toBanglaDigit(monthStats.englishAvgPct)}%
+                    </p>
+                  </div>
+                  <div className="border border-slate-400 bg-white px-2 py-1.5 rounded">
+                    <p className="text-slate-500">গণিত / পঠন গতি</p>
+                    <p className="font-bold text-slate-900">
+                      {toBanglaDigit(monthStats.avgMathScore)}% / {toBanglaDigit(monthStats.avgWpm)} WPM
+                    </p>
+                  </div>
+                  <div className="border border-slate-700 bg-slate-900 text-white px-2 py-1.5 rounded">
+                    <p className="text-emerald-200">সার্বিক FLN %</p>
+                    <p className="font-bold text-sm">{toBanglaDigit(monthStats.overallFlnPct)}%</p>
+                  </div>
+                </div>
+              </div>
 
               {/* Month Target Summary Box inside Sheet */}
               <div className="grid grid-cols-3 gap-2 text-[11px] border border-slate-400 p-2.5 bg-slate-50/70">
@@ -1244,7 +1409,7 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
               {/* Monthly Indicator Table */}
               <div>
                 <p className="text-xs font-bold text-slate-900 mb-1.5">
-                  ক) {currentMilestone.monthName} মাসের প্রান্তিক যোগ্যতাভিত্তিক FLN যাচাই বিবরণী ({selectedClass}):
+                  খ) {currentMilestone.monthName} মাসের প্রান্তিক যোগ্যতাভিত্তিক FLN যাচাই বিবরণী ({selectedClass}):
                 </p>
                 <table className="w-full text-[11px] border-collapse border border-slate-700">
                   <thead>
@@ -1258,16 +1423,13 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                           {ind.competencyCode}
                         </th>
                       ))}
-                      <th className="border border-slate-700 py-1.5 px-2 text-center">অর্জন স্তর</th>
+                      <th className="border border-slate-700 py-1.5 px-2 text-center">অর্জন স্তর (%)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {classRecords.map((rec) => {
                       const entry = rec.months[String(selectedMonth)];
-                      const summary = getDomainScoreSummary(
-                        entry,
-                        classIndicators.map((i) => i.id)
-                      );
+                      const summary = evaluateFlnEntryOverall(entry, selectedClass);
                       const overallMeta = FLN_LEVEL_META[summary.overall];
                       return (
                         <tr key={rec.id}>
@@ -1284,6 +1446,13 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                             {entry?.mathScore !== undefined ? `${toBanglaDigit(entry.mathScore)}%` : '—'}
                           </td>
                           {classIndicators.map((ind) => {
+                            if (!summary.hasEntry) {
+                              return (
+                                <td key={ind.id} className="border border-slate-700 py-1 px-2 text-center text-slate-400">
+                                  —
+                                </td>
+                              );
+                            }
                             const lvl: FlnLevel = entry?.indicators[ind.id] || 'remedial';
                             const meta = FLN_LEVEL_META[lvl];
                             return (
@@ -1293,19 +1462,149 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                             );
                           })}
                           <td className="border border-slate-700 py-1 px-2 text-center font-bold tabular-nums">
-                            {overallMeta.shortLabel} ({toBanglaDigit(summary.percent)}%)
+                            {summary.hasEntry
+                              ? `${overallMeta.shortLabel} (${toBanglaDigit(summary.percent)}%)`
+                              : '— বাকি'}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-100 font-bold tabular-nums">
+                      <td className="border border-slate-700 py-1.5 px-2 text-center" colSpan={2}>
+                        শ্রেণির গড় ও অটো % ({toBanglaDigit(monthStats.assessedCount)}/
+                        {toBanglaDigit(monthStats.totalStudents)} জন)
+                      </td>
+                      <td className="border border-slate-700 py-1.5 px-2 text-center">
+                        {toBanglaDigit(monthStats.avgWpm)}
+                      </td>
+                      <td className="border border-slate-700 py-1.5 px-2 text-center">
+                        {toBanglaDigit(monthStats.avgMathScore)}%
+                      </td>
+                      {classIndicators.map((ind) => {
+                        const st = monthStats.indicatorStats[ind.id];
+                        return (
+                          <td key={ind.id} className="border border-slate-700 py-1.5 px-2 text-center">
+                            {toBanglaDigit(st?.attainmentPct ?? 0)}%
+                          </td>
+                        );
+                      })}
+                      <td className="border border-slate-700 py-1.5 px-2 text-center">
+                        {toBanglaDigit(monthStats.overallFlnPct)}% (● {toBanglaDigit(monthStats.masteredPct)}%)
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
+
+              {/* School-wide All-Class Auto % Summary Form */}
+              {previewIncludeSchoolSummary && (
+                <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                  <p className="text-xs font-bold text-slate-900 mb-1.5">
+                    গ) বিদ্যালয়ভিত্তিক সকল শ্রেণির FLN সারসংক্ষেপ ফরম — {currentMilestone.monthName} ২০২৬ (সকল শিক্ষার্থীর ডাটা থেকে স্বয়ংক্রিয় %):
+                  </p>
+                  <table className="w-full text-[10px] border-collapse border border-slate-700 tabular-nums">
+                    <thead>
+                      <tr className="bg-slate-100">
+                        <th className="border border-slate-700 py-1 px-2 text-left">শ্রেণি</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">মোট</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">মূল্যায়িত (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">● অর্জিত (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">◐ অগ্রসরমান (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">▲ নিরাময় (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">বাংলা (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">English (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">গণিত (%)</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">গড় WPM</th>
+                        <th className="border border-slate-700 py-1 px-1.5 text-center">সার্বিক FLN (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {schoolSummary.classes.map((clsRow) => (
+                        <tr
+                          key={clsRow.classLevel}
+                          className={clsRow.classLevel === selectedClass ? 'bg-emerald-50/70 font-semibold' : ''}
+                        >
+                          <td className="border border-slate-700 py-1 px-2 font-semibold">
+                            {clsRow.classLevel}
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {toBanglaDigit(clsRow.totalStudents)}
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {toBanglaDigit(clsRow.assessedCount)} ({toBanglaDigit(clsRow.assessedPct)}%)
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {toBanglaDigit(clsRow.masteredCount)} ({toBanglaDigit(clsRow.masteredPct)}%)
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {toBanglaDigit(clsRow.developingCount)} ({toBanglaDigit(clsRow.developingPct)}%)
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {toBanglaDigit(clsRow.remedialCount)} ({toBanglaDigit(clsRow.remedialPct)}%)
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {clsRow.assessedCount > 0 ? `${toBanglaDigit(clsRow.banglaAvgPct)}%` : '—'}
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {clsRow.assessedCount > 0 ? `${toBanglaDigit(clsRow.englishAvgPct)}%` : '—'}
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {clsRow.assessedCount > 0 ? `${toBanglaDigit(clsRow.avgMathScore)}%` : '—'}
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center">
+                            {clsRow.avgWpm > 0 ? toBanglaDigit(clsRow.avgWpm) : '—'}
+                          </td>
+                          <td className="border border-slate-700 py-1 px-1.5 text-center font-bold">
+                            {clsRow.assessedCount > 0 ? `${toBanglaDigit(clsRow.overallFlnPct)}%` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-200 font-bold">
+                        <td className="border border-slate-700 py-1.5 px-2">সর্বমোট / বিদ্যালয় গড়</td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.totalStudents)}
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.assessedCount)} ({toBanglaDigit(schoolSummary.totals.assessedPct)}%)
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.masteredCount)} ({toBanglaDigit(schoolSummary.totals.masteredPct)}%)
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.developingCount)} ({toBanglaDigit(schoolSummary.totals.developingPct)}%)
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.remedialCount)} ({toBanglaDigit(schoolSummary.totals.remedialPct)}%)
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.banglaAvgPct)}%
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.englishAvgPct)}%
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.avgMathScore)}%
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.avgWpm)}
+                        </td>
+                        <td className="border border-slate-700 py-1.5 px-1.5 text-center">
+                          {toBanglaDigit(schoolSummary.totals.overallFlnPct)}%
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
 
               {/* 12-Month Summary Matrix inside A4 Sheet */}
               <div>
                 <p className="text-xs font-bold text-slate-900 mb-1.5">
-                  খ) ১২ মাসের (জানুয়ারি–ডিসেম্বর) বার্ষিক FLN অর্জনের তুলনামূলক ছক:
+                  {previewIncludeSchoolSummary ? 'ঘ' : 'গ'}) ১২ মাসের (জানুয়ারি–ডিসেম্বর) বার্ষিক FLN অর্জনের তুলনামূলক ছক:
                 </p>
                 <table className="w-full text-[10px] border-collapse border border-slate-700">
                   <thead>
@@ -1335,10 +1634,7 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                               </td>
                             );
                           }
-                          const summary = getDomainScoreSummary(
-                            entry,
-                            classIndicators.map((i) => i.id)
-                          );
+                          const summary = evaluateFlnEntryOverall(entry, selectedClass);
                           return (
                             <td
                               key={m.index}
@@ -1351,6 +1647,18 @@ export default function MonthlyFlnPage({ profile, onNavigate }: MonthlyFlnPagePr
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-100 font-bold tabular-nums">
+                      <td className="border border-slate-700 py-1 px-2 text-center" colSpan={2}>
+                        মাসভিত্তিক শ্রেণির গড় (%)
+                      </td>
+                      {matrixMonthSummaries.map((mSum, idx) => (
+                        <td key={idx} className="border border-slate-700 py-1 px-1 text-center">
+                          {mSum.assessedCount > 0 ? `${toBanglaDigit(mSum.overallFlnPct)}%` : '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
 

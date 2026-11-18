@@ -29,6 +29,7 @@ export interface MonthlyFlnMilestone {
 export interface FlnMonthlyCheckEntry {
   readingWpm?: number;
   mathScore?: number; // out of 100
+  mathScoreManual?: boolean;
   indicators: Record<string, FlnLevel>;
   remark?: string;
 }

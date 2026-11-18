@@ -29,6 +29,7 @@ const loadQuestions = () => import('./pages/QuestionsPage');
 const loadSuggestions = () => import('./pages/SuggestionsPage');
 const loadApplications = () => import('./pages/ApplicationsPage');
 const loadMonthlyFln = () => import('./pages/MonthlyFlnPage');
+const loadTerminalCompetencies = () => import('./pages/TerminalCompetenciesPage');
 const loadEvaluation = () => import('./pages/EvaluationPage');
 const loadBooks = () => import('./pages/BooksPage');
 const loadCertificates = () => import('./pages/CertificatesPage');
@@ -46,6 +47,7 @@ const QuestionsPage = lazy(loadQuestions);
 const SuggestionsPage = lazy(loadSuggestions);
 const ApplicationsPage = lazy(loadApplications);
 const MonthlyFlnPage = lazy(loadMonthlyFln);
+const TerminalCompetenciesPage = lazy(loadTerminalCompetencies);
 const EvaluationPage = lazy(loadEvaluation);
 const BooksPage = lazy(loadBooks);
 const CertificatesPage = lazy(loadCertificates);
@@ -64,6 +66,7 @@ const PREFETCH_MAP: Partial<Record<RouteKey, () => Promise<unknown>>> = {
   suggestions: loadSuggestions,
   applications: loadApplications,
   monthly_fln: loadMonthlyFln,
+  terminal_competencies: loadTerminalCompetencies,
   evaluation: loadEvaluation,
   books: loadBooks,
   certificates: loadCertificates,
@@ -294,6 +297,9 @@ export default function App() {
             )}
             {route === 'monthly_fln' && (
               <MonthlyFlnPage profile={profile} onNavigate={handleNavigate} />
+            )}
+            {route === 'terminal_competencies' && (
+              <TerminalCompetenciesPage profile={profile} onNavigate={handleNavigate} />
             )}
             {route === 'evaluation' && (
               <EvaluationPage profile={profile} onNavigate={handleNavigate} />

@@ -3,7 +3,11 @@ import { ArrowUpRight, BookOpenCheck, Users } from 'lucide-react';
 import { FLN_LEVEL_META, FLN_MONTHS, FlnStudentRecord } from '../data/flnFramework';
 import { Student } from '../types';
 import { toBanglaDigit } from '../utils/bangla';
-import { findStudentFlnRecord, summarizeStudentFlnMonth } from '../utils/flnStudentSync';
+import {
+  allocatePercentagesTo100,
+  findStudentFlnRecord,
+  summarizeStudentFlnMonth,
+} from '../utils/flnStudentSync';
 
 interface StudentSummaryDashboardProps {
   allStudents: Student[];
@@ -42,6 +46,8 @@ export const StudentSummaryDashboard: React.FC<StudentSummaryDashboardProps> = (
     let flnPending = 0;
     let wpmSum = 0;
     let wpmCount = 0;
+    let flnPctSum = 0;
+    let flnAssessed = 0;
 
     source.forEach((student) => {
       const rec = findStudentFlnRecord(student, flnRecords);
@@ -49,6 +55,8 @@ export const StudentSummaryDashboard: React.FC<StudentSummaryDashboardProps> = (
       if (!summary.hasData || !summary.overall) {
         flnPending += 1;
       } else {
+        flnAssessed += 1;
+        flnPctSum += summary.percent;
         if (summary.overall === 'mastered') flnMastered += 1;
         else if (summary.overall === 'developing') flnDeveloping += 1;
         else flnRemedial += 1;
@@ -60,6 +68,9 @@ export const StudentSummaryDashboard: React.FC<StudentSummaryDashboardProps> = (
     });
 
     const avgWpm = wpmCount > 0 ? Math.round(wpmSum / wpmCount) : 0;
+    const avgFlnPct = flnAssessed > 0 ? Math.round(flnPctSum / flnAssessed) : 0;
+    const [flnMasteredPct, flnDevelopingPct, flnRemedialPct, flnPendingPct] =
+      allocatePercentagesTo100([flnMastered, flnDeveloping, flnRemedial, flnPending]);
 
     return {
       total,
@@ -71,7 +82,12 @@ export const StudentSummaryDashboard: React.FC<StudentSummaryDashboardProps> = (
       flnDeveloping,
       flnRemedial,
       flnPending,
+      flnMasteredPct,
+      flnDevelopingPct,
+      flnRemedialPct,
+      flnPendingPct,
       avgWpm,
+      avgFlnPct,
     };
   }, [allStudents, filteredStudents, flnRecords, scope, selectedFlnMonth]);
 
@@ -288,9 +304,9 @@ export const StudentSummaryDashboard: React.FC<StudentSummaryDashboardProps> = (
               শিক্ষার্থীদের FLN অবস্থা ({FLN_MONTHS[selectedFlnMonth]?.name || 'চলতি মাস'})
             </p>
             <p className="text-[11px] text-slate-500">
-              {stats.avgWpm > 0
-                ? `গড় পঠন গতি: ${toBanglaDigit(stats.avgWpm)} শব্দ/মিনিট`
-                : 'মাসিক FLN মূল্যায়ন থেকে স্বয়ংক্রিয়ভাবে সংযুক্ত'}
+              {stats.avgWpm > 0 || stats.avgFlnPct > 0
+                ? `সার্বিক FLN: ${toBanglaDigit(stats.avgFlnPct)}% · গড় পঠন গতি: ${toBanglaDigit(stats.avgWpm)} শব্দ/মিনিট`
+                : 'মাসিক FLN মূল্যায়ন থেকে স্বয়ংক্রিয়ভাবে % হিসাবকৃত'}
             </p>
           </div>
         </div>
@@ -300,22 +316,30 @@ export const StudentSummaryDashboard: React.FC<StudentSummaryDashboardProps> = (
             className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold tabular-nums ${FLN_LEVEL_META.mastered.badgeClass}`}
           >
             <span>{FLN_LEVEL_META.mastered.symbol}</span>
-            <span>অর্জিত: {toBanglaDigit(stats.flnMastered)} জন</span>
+            <span>
+              অর্জিত: {toBanglaDigit(stats.flnMastered)} জন ({toBanglaDigit(stats.flnMasteredPct)}%)
+            </span>
           </span>
           <span
             className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold tabular-nums ${FLN_LEVEL_META.developing.badgeClass}`}
           >
             <span>{FLN_LEVEL_META.developing.symbol}</span>
-            <span>অগ্রসরমান: {toBanglaDigit(stats.flnDeveloping)} জন</span>
+            <span>
+              অগ্রসরমান: {toBanglaDigit(stats.flnDeveloping)} জন ({toBanglaDigit(stats.flnDevelopingPct)}%)
+            </span>
           </span>
           <span
             className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold tabular-nums ${FLN_LEVEL_META.remedial.badgeClass}`}
           >
             <span>{FLN_LEVEL_META.remedial.symbol}</span>
-            <span>সহায়তা প্রয়োজন: {toBanglaDigit(stats.flnRemedial)} জন</span>
+            <span>
+              সহায়তা প্রয়োজন: {toBanglaDigit(stats.flnRemedial)} জন ({toBanglaDigit(stats.flnRemedialPct)}%)
+            </span>
           </span>
           <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 tabular-nums">
-            <span>মূল্যায়ন বাকি: {toBanglaDigit(stats.flnPending)} জন</span>
+            <span>
+              মূল্যায়ন বাকি: {toBanglaDigit(stats.flnPending)} জন ({toBanglaDigit(stats.flnPendingPct)}%)
+            </span>
           </span>
           {onOpenFlnPage && (
             <button

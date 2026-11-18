@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Download,
   Smartphone,
@@ -7,108 +7,117 @@ import {
   ExternalLink,
   Copy,
   Package,
+  MoreVertical,
 } from 'lucide-react';
 import { DEFAULT_FEATURE_SETTINGS } from '../data/featureSettings';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { FeatureSettings } from '../types';
 
-function getPublicProductionOrigin(): string {
+function getCurrentOrigin(): string {
+  if (typeof window === 'undefined') return '';
+  return window.location.origin;
+}
+
+function getPublicShareOrigin(): string {
   if (typeof window === 'undefined') return '';
   const { protocol, host } = window.location;
-  // On AI Studio Cloud Run, map dev preview host (ais-dev-*) to public shared production host (ais-pre-*)
   const normalizedHost = host.startsWith('ais-dev-') ? host.replace(/^ais-dev-/, 'ais-pre-') : host;
   return `${protocol}//${normalizedHost}`;
 }
 
 export const PWAInstallButton: React.FC = () => {
-  const { isInstallable, isInstalled, isIOS, isInIframe, install } = usePWAInstall();
+  const {
+    isInstallable,
+    isInstalled,
+    isIOS,
+    isAndroid,
+    isInAppBrowser,
+    isInIframe,
+    install,
+  } = usePWAInstall();
   const [featureSettings] = useLocalStorage<FeatureSettings>(
     'app_feature_settings_v1',
     DEFAULT_FEATURE_SETTINGS
   );
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showApkTools, setShowApkTools] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [autoInstallRequested, setAutoInstallRequested] = useState(() => {
+  const [autoInstallBannerDismissed, setAutoInstallBannerDismissed] = useState(false);
+  const [autoInstallRequested] = useState(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('autoinstall') === '1';
   });
-
-  useEffect(() => {
-    if (!autoInstallRequested || !isInstallable || isInstalled) return;
-    let cancelled = false;
-
-    const tryAutoInstall = async () => {
-      const ok = await install();
-      if (!cancelled && ok) {
-        setAutoInstallRequested(false);
-      }
-    };
-
-    void tryAutoInstall();
-    return () => {
-      cancelled = true;
-    };
-  }, [autoInstallRequested, isInstallable, isInstalled, install]);
 
   if (isInstalled) {
     return null;
   }
 
-  const publicOrigin = getPublicProductionOrigin();
-  const directInstallUrl = `${publicOrigin}/?autoinstall=1`;
+  const currentOrigin = getCurrentOrigin();
+  const publicOrigin = getPublicShareOrigin();
+  const directChromeUrl = `${currentOrigin}/?autoinstall=1`;
+  const androidChromeIntentUrl =
+    typeof window !== 'undefined'
+      ? `intent://${window.location.host}/?autoinstall=1#Intent;scheme=https;package=com.android.chrome;end`
+      : directChromeUrl;
   const pwabuilderUrl = `https://www.pwabuilder.com/reportcard?site=${encodeURIComponent(publicOrigin)}`;
   const customApkUrl = (featureSettings.apkDownloadUrl || '').trim();
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(publicOrigin);
+      await navigator.clipboard.writeText(currentOrigin || publicOrigin);
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     } catch {
-      // ignore
+      // ignore clipboard errors
     }
   };
 
   const handleButtonClick = async () => {
     if (isInstallable) {
-      await install();
-      return;
+      const outcome = await install();
+      if (outcome === 'accepted' || outcome === 'dismissed') {
+        return;
+      }
     }
     setShowGuideModal(true);
   };
+
+  const showFloatingPromptBar =
+    !isInIframe && !autoInstallBannerDismissed && (autoInstallRequested || isInstallable);
 
   return (
     <>
       <button
         type="button"
         onClick={() => void handleButtonClick()}
-        title="অ্যাপ ডাউনলোড বা ব্রাউজারে ইনস্টল করুন"
-        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+        title="অ্যাপ ফোনে ইনস্টল করুন"
+        aria-label="অ্যাপ ইনস্টল করুন"
+        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
           isInstallable
             ? 'bg-emerald-500 hover:bg-emerald-600 shadow-xs'
-            : 'bg-white/15 hover:bg-white/25'
+            : 'bg-emerald-600/90 hover:bg-emerald-500 ring-1 ring-emerald-300/40'
         }`}
       >
-        <Download className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>{isInstallable ? 'ইনস্টল করুন' : 'অ্যাপ ডাউনলোড'}</span>
+        <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>অ্যাপ ইনস্টল করুন</span>
       </button>
 
-      {/* Auto-install floating bar when opened directly in browser tab with ?autoinstall=1 */}
-      {autoInstallRequested && !isInIframe && (
+      {/* Clean Android/Browser Install Bar when opened directly (?autoinstall=1 or prompt ready) */}
+      {showFloatingPromptBar && isInstallable && (
         <div
           role="region"
           aria-label="অ্যাপ ইনস্টল ব্যানার"
-          className="fixed bottom-14 md:bottom-4 right-4 left-4 sm:left-auto sm:max-w-sm z-50 rounded-2xl border border-emerald-200 bg-white p-4 shadow-xl text-slate-800 space-y-2.5"
+          className="no-print fixed bottom-14 md:bottom-4 right-3 left-3 sm:left-auto sm:max-w-sm z-40 rounded-2xl border border-emerald-200 bg-white p-3.5 shadow-xl text-slate-800 space-y-2.5"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              <Download className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
-              <span>অফলাইন অ্যাপ ইনস্টল প্রস্তুত</span>
+              <Smartphone className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
+              <span>ফোনে অ্যাপ ইনস্টল করুন</span>
             </div>
             <button
               type="button"
-              onClick={() => setAutoInstallRequested(false)}
+              onClick={() => setAutoInstallBannerDismissed(true)}
               aria-label="বন্ধ করুন"
               className="p-0.5 text-slate-400 hover:text-slate-700"
             >
@@ -116,52 +125,34 @@ export const PWAInstallButton: React.FC = () => {
             </button>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed">
-            {isInstallable
-              ? 'নিচের বাটনে চাপলেই আপনার ফোনে অ্যাপটি সরাসরি ইনস্টল হয়ে যাবে।'
-              : 'Chrome মেনু (⋮) থেকে "Install app" অথবা "Add to Home screen" চাপুন; অথবা নিচে থেকে APK প্যাকেজ নিন।'}
+            নিচের বাটনে চাপলেই আপনার Android ফোনে &ldquo;প্রাইমারি মাস্টার&rdquo; সরাসরি অ্যাপ হিসেবে ইনস্টল হয়ে যাবে।
           </p>
-          <div className="flex gap-2">
-            {isInstallable ? (
-              <button
-                type="button"
-                onClick={() => void install()}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>এখনই ইনস্টল করুন</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setAutoInstallRequested(false);
-                  setShowGuideModal(true);
-                }}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
-              >
-                <Package className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>APK ডাউনলোড বিকল্প</span>
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => void handleButtonClick()}
+            className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span>এখনই ইনস্টল করুন</span>
+          </button>
         </div>
       )}
 
       {showGuideModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+          className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 backdrop-blur-xs p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="install-guide-title"
         >
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 sm:p-6 text-slate-800 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 text-slate-800 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3
                 id="install-guide-title"
                 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2"
               >
-                <Package className="h-5 w-5 text-blue-600" aria-hidden="true" />
-                <span>অ্যাপ ডাউনলোড (.APK) ও ইনস্টল</span>
+                <Smartphone className="h-5 w-5 text-emerald-700" aria-hidden="true" />
+                <span>অ্যাপ ইনস্টল করুন (Android / মোবাইল)</span>
               </h3>
               <button
                 type="button"
@@ -173,31 +164,10 @@ export const PWAInstallButton: React.FC = () => {
               </button>
             </div>
 
-            {/* Option A: Admin Hosted Direct APK Download */}
-            {customApkUrl && (
-              <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 space-y-2.5">
-                <p className="text-sm font-bold text-emerald-950 flex items-center gap-1.5">
-                  <Download className="h-4 w-4 text-emerald-700" aria-hidden="true" />
-                  <span>সরাসরি Android .APK ফাইল ডাউনলোড করুন</span>
-                </p>
-                <a
-                  href={customApkUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  <span>অ্যাপ ফাইল (.APK) ডাউনলোড করুন</span>
-                </a>
-              </div>
-            )}
-
-            {/* Option B: Native Browser 1-Click Install or Public Production Tab */}
             {isInstallable ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-3">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
                 <p className="text-xs sm:text-sm text-emerald-950 font-medium leading-relaxed">
-                  আপনার ব্রাউজারে সরাসরি অফলাইন অ্যাপ ইনস্টল সমর্থিত রয়েছে! নিচের বাটনে চাপলেই ফোনে অ্যাপ আইকন যুক্ত হবে।
+                  আপনার ফোনে সরাসরি অ্যাপ ইনস্টল করার জন্য প্রস্তুত! নিচের বাটনে চাপলেই হোম স্ক্রিনে অ্যাপ আইকন যুক্ত হবে।
                 </p>
                 <button
                   type="button"
@@ -205,83 +175,147 @@ export const PWAInstallButton: React.FC = () => {
                     void install();
                     setShowGuideModal(false);
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
                 >
                   <Download className="h-4 w-4" aria-hidden="true" />
-                  <span>সরাসরি ব্রাউজারে ইনস্টল করুন</span>
+                  <span>সরাসরি ইনস্টল করুন</span>
                 </button>
               </div>
             ) : isIOS ? (
               <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-2">
                 <p className="text-sm font-bold text-blue-950">iPhone / iPad (Safari) ইনস্টল:</p>
                 <ol className="space-y-1.5 text-xs text-blue-900 list-decimal list-inside leading-relaxed">
-                  <li>Safari ব্রাউজারে <strong>Share</strong> বাটনে ট্যাপ করুন।</li>
+                  <li>Safari ব্রাউজারের নিচের <strong>Share</strong> আইকনে ট্যাপ করুন।</li>
                   <li>নিচে স্ক্রল করে <strong>Add to Home Screen</strong> নির্বাচন করুন।</li>
-                  <li><strong>Add</strong> চাপুন — সম্পূর্ণ অফলাইনে কাজ করবে।</li>
+                  <li>উপরের <strong>Add</strong> চাপুন — সম্পূর্ণ অফলাইনে চলবে।</li>
                 </ol>
               </div>
-            ) : (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 space-y-2.5">
-                <p className="text-sm font-bold text-blue-950 flex items-center gap-1.5">
-                  <Smartphone className="h-4 w-4 text-blue-700 shrink-0" aria-hidden="true" />
-                  <span>১. Chrome থেকে সরাসরি ফোনে অ্যাপ ইনস্টল (WebAPK):</span>
+            ) : isInIframe ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 space-y-3">
+                <p className="text-sm font-bold text-emerald-950">
+                  সরাসরি Chrome-এ খুলে Android ফোনে ইনস্টল করুন:
                 </p>
-                <p className="text-xs text-blue-900 leading-relaxed">
-                  {isInIframe
-                    ? 'প্রিভিউ ফ্রেমের ভেতর থেকে ব্রাউজার ইনস্টল ব্লক থাকে। নিচের বাটনে চেপে মূল লাইভ অ্যাপটি Chrome ট্যাবে খুলুন এবং ⋮ মেনু → "Install app" বা "Add to Home screen" চাপুন:'
-                    : 'আপনার ফোনের Chrome ব্রাউজারে ডানদিকের ⋮ মেনু → "Install app" বা "Add to Home screen" চাপলে অ্যাপটি সরাসরি ইনস্টল হয়ে যাবে।'}
+                <p className="text-xs text-emerald-900 leading-relaxed">
+                  প্রিভিউ ফ্রেমের ভেতর থেকে ব্রাউজার নিরাপত্তা কারণে সরাসরি ইনস্টল আটকে রাখে। নিচের বাটনে চাপলে মূল অ্যাপটি নতুন Chrome ট্যাবে খুলবে এবং সেখান থেকে এক ট্যাপেই ফোনে ইনস্টল হবে:
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <a
-                    href={directInstallUrl}
+                    href={directChromeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowGuideModal(false)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-emerald-800 transition-colors"
                   >
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>লাইভ অ্যাপ Chrome-এ খুলুন</span>
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    <span>Chrome-এ খুলে ইনস্টল করুন</span>
                   </a>
                   <button
                     type="button"
                     onClick={() => void handleCopyUrl()}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-50"
                   >
                     <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>{copiedUrl ? 'কপি হয়েছে' : 'লিংক কপি'}</span>
                   </button>
                 </div>
               </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-3">
+                <p className="text-sm font-bold text-emerald-950 flex items-center gap-1.5">
+                  <MoreVertical className="h-4 w-4 text-emerald-700 shrink-0" aria-hidden="true" />
+                  <span>Android Chrome থেকে ১-ট্যাপে ইনস্টল পদ্ধতি:</span>
+                </p>
+
+                {isAndroid && isInAppBrowser ? (
+                  <>
+                    <p className="text-xs text-emerald-900 leading-relaxed">
+                      আপনি বর্তমানে ইন-অ্যাপ ব্রাউজার (যেমন: WhatsApp / Facebook) থেকে দেখছেন। ফোনে অ্যাপ ইনস্টল করতে নিচের বাটনে চেপে <strong>Google Chrome</strong>-এ খুলুন:
+                    </p>
+                    <a
+                      href={androidChromeIntentUrl}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-emerald-800 transition-colors"
+                    >
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      <span>Google Chrome-এ খুলুন</span>
+                    </a>
+                  </>
+                ) : (
+                  <ol className="space-y-1.5 text-xs text-emerald-950 list-decimal list-inside leading-relaxed">
+                    <li>
+                      Chrome ব্রাউজারের উপরের ডান কোণায় <strong>⋮ (তিন ডট)</strong> মেনুতে ট্যাপ করুন।
+                    </li>
+                    <li>
+                      তালিকা থেকে <strong>Install app</strong> অথবা <strong>Add to Home screen</strong> নির্বাচন করুন।
+                    </li>
+                    <li>
+                      <strong>Install</strong> চাপুন — ফোনের হোম স্ক্রিন ও অ্যাপ ড্রয়ারে &ldquo;প্রাইমারি মাস্টার&rdquo; যোগ হয়ে যাবে।
+                    </li>
+                  </ol>
+                )}
+
+                {isAndroid && !isInAppBrowser && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyUrl()}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50"
+                    >
+                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>{copiedUrl ? 'লিংক কপি হয়েছে' : 'অ্যাপ লিংক কপি'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* Option C: Build & Download Real Android .APK Online via PWABuilder */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2.5">
-              <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
-                <span>২. ইনস্টলযোগ্য .APK ফাইল তৈরি ও ডাউনলোড (অনলাইন):</span>
-              </p>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                ওয়েব ব্রাউজারের ভেতর Java/Android SDK না থাকায় সরাসরি এখান থেকে বাইনারি{' '}
-                <code className="font-mono">.apk</code> কম্পাইল করা যায় না। তবে নিচের বাটনে ক্লিক করে{' '}
-                <strong>PWABuilder</strong> থেকে ৩০ সেকেন্ডেই এই অ্যাপের অফিশিয়াল{' '}
-                <strong>Android .APK প্যাকেজ</strong> ডাউনলোড করে ফোনে ইনস্টল করতে পারবেন:
-              </p>
-              <a
-                href={pwabuilderUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+            {/* Admin Hosted Direct APK Download if configured */}
+            {customApkUrl && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
+                <p className="text-xs sm:text-sm font-bold text-blue-950 flex items-center gap-1.5">
+                  <Package className="h-4 w-4 text-blue-700" aria-hidden="true" />
+                  <span>সরাসরি .APK ফাইল ডাউনলোড</span>
+                </p>
+                <a
+                  href={customApkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 transition-colors"
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  <span>অ্যাপ ফাইল (.APK) ডাউনলোড করুন</span>
+                </a>
+              </div>
+            )}
+
+            {/* Secondary collapsible PWABuilder / APK Package generator */}
+            <div className="border-t border-slate-100 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowApkTools((v) => !v)}
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5"
               >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                <span>PWABuilder থেকে .APK প্যাকেজ ডাউনলোড করুন</span>
-                <ExternalLink className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
-              </a>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                টিপস: PWABuilder পেজ খুললে <strong>Package for Stores → Android → Generate Package</strong> ক্লিক করলেই{' '}
-                <code className="font-mono">.apk</code> ও Play Store ফাইল ডাউনলোড হবে। অথবা অ্যাডমিন{' '}
-                <strong>ড্যাশবোর্ড → ফিচার ও মডিউল</strong>-এ সরাসরি{' '}
-                <code className="font-mono">.apk</code> লিংক যুক্ত করলে এখান থেকেই ১-ক্লিক ডাউনলোড করা যাবে।
-              </p>
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                <span>{showApkTools ? 'বিকল্প .APK প্যাকেজ লুকান' : 'অ্যাডভান্সড: আলাদা .APK ফাইল তৈরি করুন'}</span>
+              </button>
+
+              {showApkTools && (
+                <div className="mt-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Play Store বা সরাসরি শেয়ার করার জন্য আলাদা <code className="font-mono">.apk</code> প্যাকেজ তৈরি করতে চাইলে PWABuilder ব্যবহার করতে পারেন:
+                  </p>
+                  <a
+                    href={pwabuilderUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>PWABuilder থেকে .APK তৈরি করুন</span>
+                    <ExternalLink className="h-3 w-3 opacity-80" aria-hidden="true" />
+                  </a>
+                </div>
+              )}
             </div>
 
             <button

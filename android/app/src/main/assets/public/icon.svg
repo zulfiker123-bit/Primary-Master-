@@ -1,38 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#1E40AF" />
-      <stop offset="100%" stop-color="#3730A3" />
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)" />
-  <rect x="28" y="28" width="456" height="456" rx="90" stroke="rgba(255,255,255,0.16)" stroke-width="4" />
-  <!-- Open Book Icon -->
-  <path
-    d="M116 164C116 150.745 126.745 140 140 140H220C239.882 140 256 156.118 256 176V368C256 354.745 245.255 344 232 344H140C126.745 344 116 333.255 116 320V164Z"
-    fill="rgba(255,255,255,0.96)"
-  />
-  <path
-    d="M396 164C396 150.745 385.255 140 372 140H292C272.118 140 256 156.118 256 176V368C256 354.745 266.745 344 280 344H372C385.255 344 396 333.255 396 320V164Z"
-    fill="#E0E7FF"
-  />
-  <!-- Book Spine -->
-  <rect x="252" y="172" width="8" height="196" rx="4" fill="#1E40AF" />
-  <!-- Accent Lines on Pages -->
-  <rect x="148" y="184" width="76" height="14" rx="7" fill="#3B82F6" />
-  <rect x="148" y="216" width="64" height="12" rx="6" fill="#93C5FD" />
-  <rect x="148" y="246" width="72" height="12" rx="6" fill="#93C5FD" />
-  <rect x="148" y="276" width="52" height="12" rx="6" fill="#93C5FD" />
-  <rect x="288" y="184" width="76" height="14" rx="7" fill="#1D4ED8" />
-  <rect x="288" y="216" width="68" height="12" rx="6" fill="#60A5FA" />
-  <rect x="288" y="246" width="60" height="12" rx="6" fill="#60A5FA" />
-  <!-- Verified/Offline Shield Accent -->
-  <circle cx="368" cy="348" r="50" fill="#10B981" stroke="#1E40AF" stroke-width="10" />
-  <path
-    d="M346 348L361 363L392 332"
-    stroke="#FFFFFF"
-    stroke-width="14"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#F8F9F6" />
+  <circle cx="256" cy="256" r="218" fill="#006A4E" stroke="#D4A843" stroke-width="10" />
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#C81E2B" stroke-width="14" />
+  <circle cx="256" cy="256" r="184" fill="#006A4E" stroke="#D4A843" stroke-width="4" />
+  <!-- Golden rising sun & rays -->
+  <g stroke="#EAB308" stroke-width="7" stroke-linecap="round">
+    <line x1="256" y1="108" x2="256" y2="148" />
+    <line x1="210" y1="120" x2="228" y2="156" />
+    <line x1="302" y1="120" x2="284" y2="156" />
+    <line x1="170" y1="148" x2="202" y2="176" />
+    <line x1="342" y1="148" x2="310" y2="176" />
+  </g>
+  <circle cx="256" cy="216" r="48" fill="#EAB308" />
+  <!-- Open book -->
+  <path d="M138 228 C184 218 226 226 256 248 C286 226 328 218 374 228 L374 342 C328 332 286 340 256 360 C226 340 184 332 138 342 Z" fill="#FFFFFF" stroke="#D4A843" stroke-width="7" stroke-linejoin="round" />
+  <line x1="256" y1="248" x2="256" y2="358" stroke="#D4A843" stroke-width="5" />
+  <!-- White Shapla water lily emblem -->
+  <path d="M256 226 C272 252 272 284 256 308 C240 284 240 252 256 226 Z" fill="#F8FAFC" stroke="#006A4E" stroke-width="5" />
+  <path d="M214 250 C236 258 248 282 250 306 C228 296 212 274 214 250 Z" fill="#FFFFFF" stroke="#006A4E" stroke-width="5" />
+  <path d="M298 250 C276 258 264 282 262 306 C284 296 300 274 298 250 Z" fill="#FFFFFF" stroke="#006A4E" stroke-width="5" />
+  <path d="M188 278 C212 278 232 290 244 308 C218 310 198 298 188 278 Z" fill="#FFFFFF" stroke="#006A4E" stroke-width="5" />
+  <path d="M324 278 C300 278 280 290 268 308 C294 310 314 298 324 278 Z" fill="#FFFFFF" stroke="#006A4E" stroke-width="5" />
 </svg>

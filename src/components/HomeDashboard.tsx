@@ -20,6 +20,7 @@ import {
   Monitor,
   UserCheck,
   Bell,
+  Target,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -104,8 +105,17 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
     toneClass: 'bg-orange-50 text-orange-800 border-orange-200/80',
   },
   {
-    route: 'applications',
+    route: 'terminal_competencies',
     indexNo: '০৬',
+    title: 'প্রান্তিক যোগ্যতা',
+    subtitle: 'প্রাক–৫ম শ্রেণির মাসভিত্তিক অর্জিতব্য প্রান্তিক যোগ্যতা',
+    category: 'পাঠ ও পরীক্ষা',
+    icon: Target,
+    toneClass: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+  },
+  {
+    route: 'applications',
+    indexNo: '০৭',
     title: 'দাপ্তরিক আবেদন সমূহ',
     subtitle: 'নৈমিত্তিক ছুটি, হোম ভিজিট ও দাপ্তরিক ফরম্যাট প্রিন্ট',
     category: 'দাপ্তরিক ও নথি',
@@ -114,7 +124,7 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
   },
   {
     route: 'certificates',
-    indexNo: '০৭',
+    indexNo: '০৮',
     title: 'সনদ ও প্রত্যয়নপত্র',
     subtitle: 'প্রশংসাপত্র, ছাড়পত্র (TC) ও অধ্যয়ন সনদ PDF তৈরি',
     category: 'দাপ্তরিক ও নথি',
@@ -123,7 +133,7 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
   },
   {
     route: 'books',
-    indexNo: '০৮',
+    indexNo: '০৯',
     title: 'NCTB মূল বই ও শিক্ষক সহায়িকা',
     subtitle: 'প্রাক–৫ম শ্রেণির পাঠ্যবই ও সহায়িকার পার্টভিত্তিক সংকলন',
     category: 'শিক্ষার্থী ও বই',
@@ -132,7 +142,7 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
   },
   {
     route: 'students',
-    indexNo: '০৯',
+    indexNo: '১০',
     title: 'শিক্ষার্থীর তথ্য ও হাজিরা খাতা',
     subtitle: 'শ্রেণিভিত্তিক শিক্ষার্থী তালিকা, প্রোফাইল কার্ড ও প্রিন্ট',
     category: 'শিক্ষার্থী ও বই',
@@ -141,7 +151,7 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
   },
   {
     route: 'forum',
-    indexNo: '১০',
+    indexNo: '১১',
     title: 'শিক্ষক ফোরাম ও অভিজ্ঞতা',
     subtitle: 'সহকর্মী শিক্ষকদের সাথে পাঠদান অভিজ্ঞতা ও পরামর্শ বিনিময়',
     category: 'সহায়ক ও পোর্টাল',
@@ -150,7 +160,7 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
   },
   {
     route: 'videos',
-    indexNo: '১১',
+    indexNo: '১২',
     title: 'শিক্ষামূলক ভিডিও পাঠশালা',
     subtitle: 'শ্রেণিকক্ষ পাঠদান কৌশল, ছড়া ও শিক্ষক প্রশিক্ষণ ভিডিও',
     category: 'সহায়ক ও পোর্টাল',
@@ -159,7 +169,7 @@ const WORKSPACE_MODULES: WorkspaceModuleDef[] = [
   },
   {
     route: 'portals',
-    indexNo: '১২',
+    indexNo: '১৩',
     title: 'অফিশিয়াল পোর্টাল ও নির্দেশিকা',
     subtitle: 'IPEMIS, PESP উপবৃত্তি, DPE ও বার্ষিক ছুটির ক্যালেন্ডার',
     category: 'সহায়ক ও পোর্টাল',

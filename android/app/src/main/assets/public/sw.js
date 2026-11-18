@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
+define(['./workbox-43e44e5a'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -78,22 +78,28 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "pwa-maskable-512x512.png",
-    "revision": "9a3e3883532d8461e4720a09d3555384"
+    "revision": "384f994169f80c89f4d633776edda53e"
   }, {
     "url": "pwa-512x512.png",
-    "revision": "842bbec695b5b8c518e67508544adcdb"
+    "revision": "1650f04a8e05b5c29db8e599ccd5a9dd"
   }, {
     "url": "pwa-192x192.png",
-    "revision": "df9e61dfaab6c7ee36b7993266925ae7"
+    "revision": "a1a518fd40cedd9e5c12ad0783be6336"
   }, {
     "url": "index.html",
-    "revision": "9a7b7558583688e896ea6ee28872710e"
+    "revision": "124a36f3eccfeb8d75c49ede5f281760"
   }, {
     "url": "icon.svg",
-    "revision": "eeb411e9dab4673abb8fd7ca9f0dfb9e"
+    "revision": "c04efdb684d5a76520ee39fcdff42396"
+  }, {
+    "url": "favicon.png",
+    "revision": "29cc7d4480b0c57cdd56cc384395cde7"
   }, {
     "url": "apple-touch-icon.png",
-    "revision": "0358fc398eb0aaf50f737f2acb110df9"
+    "revision": "c64b63ac656c66ce7cfb083531d1c1c8"
+  }, {
+    "url": "fonts/Kalpurush.woff2",
+    "revision": "a43e7768ad2129f687e0ebdcc872377b"
   }, {
     "url": "assets/xlsx-zHa97828.js",
     "revision": null
@@ -101,16 +107,13 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-Bd17z0YL.js",
     "revision": null
   }, {
-    "url": "assets/trash-2-lBjueRG0.js",
+    "url": "assets/trash-2-DmCFJn9P.js",
     "revision": null
   }, {
-    "url": "assets/share-2-CGbUe1uW.js",
+    "url": "assets/sparkles-BceVCL4k.js",
     "revision": null
   }, {
-    "url": "assets/send-DeEGIPIe.js",
-    "revision": null
-  }, {
-    "url": "assets/search-SLxOjvjz.js",
+    "url": "assets/send-CErrFkv5.js",
     "revision": null
   }, {
     "url": "assets/rolldown-runtime-XKyaHtl9.js",
@@ -119,34 +122,34 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/purify.es-Dzkdzyfv.js",
     "revision": null
   }, {
-    "url": "assets/printHelper-B-eCrOaU.js",
+    "url": "assets/printHelper-C6PngruU.js",
     "revision": null
   }, {
-    "url": "assets/plus-C3HekEpK.js",
+    "url": "assets/plus-CoT9o5cU.js",
     "revision": null
   }, {
-    "url": "assets/jspdf.es.min-D5HWKAwv.js",
+    "url": "assets/pencil-B54z-Ido.js",
     "revision": null
   }, {
-    "url": "assets/index.es-CYGHRa1Y.js",
+    "url": "assets/jsx-dev-runtime-DXMB6bYa.js",
     "revision": null
   }, {
-    "url": "assets/index-ppKMf9hh.css",
+    "url": "assets/jspdf.es.min-DvI7bkRp.js",
     "revision": null
   }, {
-    "url": "assets/index-B4U8aCBX.js",
+    "url": "assets/index.es-76raYcq4.js",
+    "revision": null
+  }, {
+    "url": "assets/index-Z8Az_hfD.js",
+    "revision": null
+  }, {
+    "url": "assets/index-CYQGkFZ2.css",
     "revision": null
   }, {
     "url": "assets/html2canvas-Bw0OShmD.js",
     "revision": null
   }, {
-    "url": "assets/hero_education_hub_1794703905998-D9xdIUFY.jpg",
-    "revision": null
-  }, {
-    "url": "assets/file-text-B0N31YPV.js",
-    "revision": null
-  }, {
-    "url": "assets/eye-C3Jmc1-K.js",
+    "url": "assets/flnStudentSync-DJ9JJ9L_.js",
     "revision": null
   }, {
     "url": "assets/digital_studio_desk_1794703906737-ktIJ7BBC.jpg",
@@ -155,83 +158,108 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/classroom_lesson_visual_1794703907497-hLE22ORQ.jpg",
     "revision": null
   }, {
-    "url": "assets/calendar-PbsMmX34.js",
+    "url": "assets/circle-arrow-up-BskXZw3v.js",
     "revision": null
   }, {
-    "url": "assets/building-2-Ce83JbBR.js",
+    "url": "assets/chevron-right-CF6iHveV.js",
     "revision": null
   }, {
-    "url": "assets/VideosPage-DorrwJjF.js",
+    "url": "assets/calendar-days-P3Kpdke_.js",
     "revision": null
   }, {
-    "url": "assets/SuggestionsPage-DoTXFcs4.js",
+    "url": "assets/calendar-C9GS_6YI.js",
     "revision": null
   }, {
-    "url": "assets/StudentsPage-2Ce7qtHq.js",
+    "url": "assets/book-open-check-CUa_f2YK.js",
     "revision": null
   }, {
-    "url": "assets/QuestionsPage-CQcnJzQ7.js",
+    "url": "assets/arrow-up-Xj0RG7U8.js",
     "revision": null
   }, {
-    "url": "assets/PortfolioPage-PDv0-ayS.js",
+    "url": "assets/VideosPage-DZabBYvf.js",
     "revision": null
   }, {
-    "url": "assets/PortalsPage-r_hbsTkg.js",
+    "url": "assets/TerminalCompetenciesPage-GgQNXJBe.js",
     "revision": null
   }, {
-    "url": "assets/PageShell-D8YvX9Bd.js",
+    "url": "assets/SuggestionsPage-DOWfdS9H.js",
     "revision": null
   }, {
-    "url": "assets/NoticesPage-2lCMUsLq.js",
+    "url": "assets/StudentsPage-uEYY3gLN.js",
     "revision": null
   }, {
-    "url": "assets/MaskabariPage-IPCUL7GS.js",
+    "url": "assets/QuestionsPage-Bar9y7wr.js",
     "revision": null
   }, {
-    "url": "assets/LessonPlanPage-CV8hS5VD.js",
+    "url": "assets/PortfolioPage-CHyjHkCN.js",
     "revision": null
   }, {
-    "url": "assets/InfoPages-lZOGxQtu.js",
+    "url": "assets/PortalsPage-_k9vGQTV.js",
     "revision": null
   }, {
-    "url": "assets/ForumPage-DjIBpjJI.js",
+    "url": "assets/PageShell-DWCMXpYm.js",
     "revision": null
   }, {
-    "url": "assets/EvaluationPage-Dv6t2Xso.js",
+    "url": "assets/NoticesPage-B4rntm-J.js",
     "revision": null
   }, {
-    "url": "assets/CertificatesPage-BLkN07cT.js",
+    "url": "assets/MonthlyFlnPage-C3WbKdwB.js",
     "revision": null
   }, {
-    "url": "assets/BooksPage-Ca2TSsHE.js",
+    "url": "assets/LessonPlanPage-BxZrTx5-.js",
     "revision": null
   }, {
-    "url": "assets/ApplicationsPage-CVdlcdOK.js",
+    "url": "assets/InfoPages-Dh-2-Jhr.js",
     "revision": null
   }, {
-    "url": "assets/AdminDashboardPage-DlxSUeJs.js",
+    "url": "assets/ForumPage-BEaMkjSa.js",
+    "revision": null
+  }, {
+    "url": "assets/EvaluationPage-hEDyBulb.js",
+    "revision": null
+  }, {
+    "url": "assets/CertificatesPage-CqZoDR6R.js",
+    "revision": null
+  }, {
+    "url": "assets/BooksPage-DaLCsd-s.js",
+    "revision": null
+  }, {
+    "url": "assets/ApplicationsPage-1qYFjcnY.js",
+    "revision": null
+  }, {
+    "url": "assets/AdminDashboardPage-WLelJiOL.js",
+    "revision": null
+  }, {
+    "url": "assets/aistudio/IMG_37af5b1e-49c8-43ce-b5f9-886334f0761d_f8bf63d3.png",
+    "revision": null
+  }, {
+    "url": "assets/aistudio/3840px-Government_Seal_of_Bangladesh.svg__1__2d6f6b7f.png",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",
-    "revision": "0358fc398eb0aaf50f737f2acb110df9"
+    "revision": "c64b63ac656c66ce7cfb083531d1c1c8"
+  }, {
+    "url": "favicon.png",
+    "revision": "29cc7d4480b0c57cdd56cc384395cde7"
   }, {
     "url": "icon.svg",
-    "revision": "eeb411e9dab4673abb8fd7ca9f0dfb9e"
+    "revision": "c04efdb684d5a76520ee39fcdff42396"
   }, {
     "url": "pwa-192x192.png",
-    "revision": "df9e61dfaab6c7ee36b7993266925ae7"
+    "revision": "a1a518fd40cedd9e5c12ad0783be6336"
   }, {
     "url": "pwa-512x512.png",
-    "revision": "842bbec695b5b8c518e67508544adcdb"
+    "revision": "1650f04a8e05b5c29db8e599ccd5a9dd"
   }, {
     "url": "pwa-maskable-512x512.png",
-    "revision": "9a3e3883532d8461e4720a09d3555384"
+    "revision": "384f994169f80c89f4d633776edda53e"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "4acdcf0ca6a5a51294b9dcf8dee177f6"
+    "revision": "065560a6f079242fd77dd1a409534974"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html")));
+  workbox.registerRoute(/\/version\.json(\?.*)?$/i, new workbox.NetworkOnly(), 'GET');
   workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({
     "cacheName": "google-fonts-cache",
     plugins: [new workbox.ExpirationPlugin({
