@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>প্রাইমারি মাস্টার — পাঠ পরিকল্পনা, সাজেশন, মাসকাবারি ও মূল বই</title>
+    <meta
+      name="description"
+      content="প্রাইমারি মাস্টার — প্রাথমিক বিদ্যালয়ের শিক্ষকদের দ্রুতগতির ডিজিটাল সহায়িকা: পাঠ পরিকল্পনা, প্রশ্ন-উত্তর, মাসকাবারি (M.R), মূল্যায়ন রেকর্ড, আবেদন, সনদ ও শিক্ষার্থীর তথ্য।"
+    />
+    <meta property="og:title" content="প্রাইমারি মাস্টার — Primary Master" />
+    <meta
+      property="og:description"
+      content="পাঠ পরিকল্পনা, প্রশ্ন-উত্তর, মাসকাবারি, মূল্যায়ন রেকর্ড, আবেদন ও সনদপত্র — সব সুবিধা এক দ্রুতগতির রেসপন্সিভ অ্যাপে।"
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0F2922" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="প্রাইমারি মাস্টার" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <script>
+      window.__deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__deferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__deferredInstallPrompt = null;
+        window.dispatchEvent(new CustomEvent('pwa-app-installed'));
+      });
+    </script>
+    <link rel="preload" href="/fonts/Kalpurush.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-[#F6F7F4] text-slate-900 antialiased selection:bg-emerald-700 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

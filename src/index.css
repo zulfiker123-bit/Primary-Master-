@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Kalpurush';
+  src: url('/fonts/Kalpurush.woff2') format('woff2'),
+       url('/fonts/Kalpurush.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Kalpurush', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Kalpurush', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-serif: 'Kalpurush', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'Kalpurush', monospace;
+}
+
+@layer base {
+  :root {
+    --font-sans: 'Kalpurush', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-display: 'Kalpurush', 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Kalpurush', monospace;
+  }
+
+  html,
+  body {
+    font-family: 'Kalpurush', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    scroll-behavior: smooth;
+    font-synthesis: weight style;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Kalpurush', 'Plus Jakarta Sans', system-ui, sans-serif;
+    text-wrap: balance;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Fast compositor-only transitions */
+.card-interactive {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1), border-color 180ms ease;
+  will-change: transform;
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+}
+
+.card-interactive:active {
+  transform: scale(0.985);
+}
+
+/* Marquee / notice ticker animation */
+@keyframes tickerScroll {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-ticker {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: tickerScroll 28s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker {
+    animation: none;
+  }
+  .card-interactive {
+    transition: none;
+  }
+}
+
+/* A4 Paper Sheet Preview (210mm x 297mm) with Zero Outer Margin */
+.a4-paper-sheet {
+  width: 100%;
+  max-width: 210mm;
+  min-height: 297mm;
+  margin-left: auto;
+  margin-right: auto;
+  background: #ffffff;
+  padding: 0;
+  box-sizing: border-box;
+  box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Full-Page A4 Landscape Sheet (297mm x 210mm) with Zero Margin for Certificates & TC */
+.a4-landscape-sheet {
+  width: 100%;
+  max-width: 297mm;
+  aspect-ratio: 297 / 210;
+  margin-left: auto;
+  margin-right: auto;
+  background: #ffffff;
+  padding: 0;
+  box-sizing: border-box;
+  box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .a4-paper-sheet {
+    min-height: auto;
+    padding: 0;
+  }
+  .a4-landscape-sheet {
+    aspect-ratio: auto;
+    min-height: 260px;
+  }
+}
+
+/* Global A4 Zero Margin Print Rules */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0mm !important;
+  }
+  html,
+  body {
+    font-family: 'Kalpurush', 'Plus Jakarta Sans', system-ui, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+  }
+  .a4-paper-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+  }
+  .a4-landscape-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 297mm !important;
+    max-width: 297mm !important;
+    height: 210mm !important;
+    min-height: 210mm !important;
+    max-height: 210mm !important;
+    overflow: hidden !important;
+  }
+}

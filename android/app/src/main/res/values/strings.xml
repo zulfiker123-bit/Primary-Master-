@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">প্রাইমারি মাস্টার</string>
+    <string name="title_activity_main">প্রাইমারি মাস্টার</string>
+    <string name="package_name">com.shimuldigital.teacherassistant</string>
+    <string name="custom_url_scheme">com.shimuldigital.teacherassistant</string>
+</resources>

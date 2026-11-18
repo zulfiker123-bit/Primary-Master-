@@ -1,0 +1,157 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated teacher or admin account metadata for per-user isolation across devices.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "loginId": {
+          "type": "string",
+          "description": "Teacher login ID or email identifier used to sign in.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Teacher display name.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Primary school name.",
+          "maxLength": 200
+        },
+        "designation": {
+          "type": "string",
+          "description": "Teacher designation.",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "description": "Account access role.",
+          "enum": ["teacher", "admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "loginId", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "UserDataset": {
+      "title": "UserDataset",
+      "description": "Isolated per-user application dataset (profile, students, evaluations, monthly FLN, notices, lesson plans, etc.).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "datasetKey": {
+          "type": "string",
+          "description": "Dataset key matching the subcollection document ID.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_]+$"
+        },
+        "payload": {
+          "type": "object",
+          "description": "Native map container wrapping the dataset value under payload.data."
+        },
+        "clientUpdatedMs": {
+          "type": "integer",
+          "description": "Client update epoch milliseconds."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "datasetKey", "payload", "updatedAt"]
+    },
+    "AppReleaseConfig": {
+      "title": "AppReleaseConfig",
+      "description": "Live release metadata for triggering cross-device automatic app updates.",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Semantic version string.",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "buildId": {
+          "type": "string",
+          "description": "Unique build identifier.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "releaseNotes": {
+          "type": "string",
+          "description": "Release summary notes.",
+          "maxLength": 500
+        },
+        "forceReload": {
+          "type": "boolean",
+          "description": "Whether clients should force reload immediately."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["version", "buildId", "updatedAt"]
+    },
+    "AdminMember": {
+      "title": "AdminMember",
+      "description": "Trusted admin UID registry document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        }
+      },
+      "required": ["uid"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Teacher account root documents isolated per authenticated user."
+    },
+    "/users/{userId}/datasets/{datasetKey}": {
+      "schema": { "$ref": "#/entities/UserDataset" },
+      "description": "Per-user isolated app datasets synced across devices."
+    },
+    "/appMeta/{docId}": {
+      "schema": { "$ref": "#/entities/AppReleaseConfig" },
+      "description": "Global application release version metadata."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminMember" },
+      "description": "Admin authorization registry."
+    }
+  }
+}

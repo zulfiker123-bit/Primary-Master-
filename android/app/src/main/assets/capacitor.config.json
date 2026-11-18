@@ -1,0 +1,12 @@
+{
+	"appId": "com.shimuldigital.teacherassistant",
+	"appName": "Primary Teacher Assistant",
+	"webDir": "dist",
+	"android": {
+		"backgroundColor": "#F4F7FB",
+		"allowMixedContent": false
+	},
+	"server": {
+		"androidScheme": "https"
+	}
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Primary Master",
+  "description": "প্রাথমিক বিদ্যালয়ের শিক্ষকদের জন্য দ্রুতগতির ও রেসপন্সিভ ডিজিটাল সহায়িকা — পাঠ পরিকল্পনা, প্রশ্ন-উত্তর, মূল্যায়ন রেকর্ড, আবেদন, সনদ ও শিক্ষক ফোরাম।",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

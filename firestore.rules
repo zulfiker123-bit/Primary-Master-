@@ -1,0 +1,201 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== Primitive Helpers ====================
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDatasetKey(key) {
+      return key is string
+        && key.size() >= 1
+        && key.size() <= 64
+        && key.matches('^[a-zA-Z0-9_]+$')
+        && key in [
+          'teacher_profile_data',
+          'app_notices_v1',
+          'app_feature_settings_v1',
+          'last_seen_notices_count',
+          'students_list_v1',
+          'evaluation_records_v1',
+          'monthly_fln_records_v1',
+          'teacher_forum_v1',
+          'custom_lesson_plans_v1',
+          'custom_questions_v1',
+          'custom_book_notes_v1',
+          'edu_videos_v1',
+          'custom_portals_v1',
+          'nctb_completed_parts_v1',
+          'datewise_lp_overrides_v1',
+          'print_preferences_v1',
+          'last_backup_at'
+        ];
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        || (
+          request.auth.token.email == 'zulfikerhossain278@gmail.com'
+          && request.auth.token.email_verified == true
+        )
+      );
+    }
+
+    // ==================== Validation Blueprints ====================
+    function isValidUserAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'loginId', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'loginId', 'displayName', 'schoolName', 'designation', 'role', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.loginId is string
+        && data.loginId.size() >= 2
+        && data.loginId.size() <= 120
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 150
+        && (!('schoolName' in data) || (data.schoolName is string && data.schoolName.size() <= 200))
+        && (!('designation' in data) || (data.designation is string && data.designation.size() <= 100))
+        && data.role in ['teacher', 'admin']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserDataset(data, userId, datasetKey) {
+      return data.keys().hasAll(['uid', 'datasetKey', 'payload', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'datasetKey', 'payload', 'updatedAt', 'clientUpdatedMs'])
+        && data.uid is string
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.datasetKey is string
+        && data.datasetKey == datasetKey
+        && isValidDatasetKey(data.datasetKey)
+        && data.payload is map
+        && data.payload.keys().hasAll(['data'])
+        && data.payload.keys().hasOnly(['data'])
+        && data.updatedAt is timestamp
+        && (!('clientUpdatedMs' in data) || (data.clientUpdatedMs is int && data.clientUpdatedMs >= 0));
+    }
+
+    function isValidAppReleaseConfig(data) {
+      return data.keys().hasAll(['version', 'buildId', 'updatedAt'])
+        && data.keys().hasOnly(['version', 'buildId', 'releaseNotes', 'forceReload', 'updatedAt'])
+        && data.version is string
+        && data.version.size() >= 1
+        && data.version.size() <= 32
+        && data.buildId is string
+        && data.buildId.size() >= 1
+        && data.buildId.size() <= 64
+        && (!('releaseNotes' in data) || (data.releaseNotes is string && data.releaseNotes.size() <= 500))
+        && (!('forceReload' in data) || data.forceReload is bool)
+        && data.updatedAt is timestamp;
+    }
+
+    // ==================== Collection Rules ====================
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && isSignedIn() && (request.auth.uid == adminUid || isAdmin());
+      allow list, create, update, delete: if false;
+    }
+
+    match /appMeta/{docId} {
+      allow get: if docId == 'release';
+      allow list: if false;
+      allow create: if docId == 'release'
+        && isAdmin()
+        && isValidAppReleaseConfig(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if docId == 'release'
+        && isAdmin()
+        && isValidAppReleaseConfig(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['version', 'buildId', 'releaseNotes', 'forceReload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().uid == request.auth.uid
+        && incoming().role == 'teacher'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && (
+          isAdmin()
+          || (
+            isOwner(userId)
+            && incoming().uid == existing().uid
+            && incoming().role == existing().role
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['loginId', 'displayName', 'schoolName', 'designation', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      match /datasets/{datasetKey} {
+        allow get: if isValidId(userId)
+          && isValidDatasetKey(datasetKey)
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidDatasetKey(datasetKey)
+          && isOwner(userId)
+          && isValidUserDataset(incoming(), userId, datasetKey)
+          && incoming().uid == request.auth.uid
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && isValidDatasetKey(datasetKey)
+          && isValidUserDataset(incoming(), userId, datasetKey)
+          && (
+            isAdmin()
+            || (
+              isOwner(userId)
+              && incoming().uid == existing().uid
+              && incoming().datasetKey == existing().datasetKey
+              && incoming().updatedAt == request.time
+              && incoming().diff(existing()).affectedKeys().hasOnly(['payload', 'updatedAt', 'clientUpdatedMs'])
+              && exists(/databases/$(database)/documents/users/$(userId))
+            )
+          );
+        allow delete: if isValidId(userId)
+          && isValidDatasetKey(datasetKey)
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+  }
+}
